@@ -41,12 +41,20 @@ CREATE TABLE IF NOT EXISTS picks (
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
   golfer_id INTEGER NOT NULL REFERENCES golfers(id) ON DELETE CASCADE,
   pick_type TEXT NOT NULL CHECK (pick_type IN ('starter', 'backup')),
+  -- Starters use pick_order 1-4; the single backup uses pick_order 5.
   pick_order INTEGER NOT NULL CHECK (pick_order BETWEEN 1 AND 5),
+  CONSTRAINT pick_type_order_valid CHECK (
+    (pick_type = 'starter' AND pick_order BETWEEN 1 AND 4)
+    OR (pick_type = 'backup' AND pick_order = 5)
+  ),
   was_subbed_out BOOLEAN NOT NULL DEFAULT false,
   was_activated BOOLEAN NOT NULL DEFAULT false,
   fedex_points INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, tournament_id, golfer_id)
+  -- A user cannot pick the same golfer twice in one tournament...
+  UNIQUE(user_id, tournament_id, golfer_id),
+  -- ...and each pick slot (1-5) is filled at most once per tournament.
+  UNIQUE(user_id, tournament_id, pick_order)
 );
 
 CREATE TABLE IF NOT EXISTS standings (
@@ -67,6 +75,7 @@ ON CONFLICT (key) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_picks_user_tournament ON picks(user_id, tournament_id);
 CREATE INDEX IF NOT EXISTS idx_picks_tournament ON picks(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_picks_golfer ON picks(golfer_id);
 CREATE INDEX IF NOT EXISTS idx_tournament_field_tournament ON tournament_field(tournament_id);
 CREATE INDEX IF NOT EXISTS idx_tournaments_season ON tournaments(season_year);
 CREATE INDEX IF NOT EXISTS idx_golfers_espn_id ON golfers(espn_id);
