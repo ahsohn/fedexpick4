@@ -16,13 +16,16 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const result = await login(email);
-    if (result.success) {
-      router.push("/");
-    } else {
-      setError(result.error ?? "Login failed");
+    try {
+      const result = await login(email);
+      if (result.success) {
+        router.push("/");
+      } else {
+        setError(result.error ?? "Login failed");
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

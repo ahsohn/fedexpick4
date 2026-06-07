@@ -4,24 +4,24 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePathname } from "next/navigation";
 
+const BASE_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/picks", label: "Picks" },
+  { href: "/standings", label: "Standings" },
+  { href: "/results", label: "Results" },
+  { href: "/history", label: "History" },
+  { href: "/stats", label: "Stats" },
+];
+
+const ADMIN_LINK = { href: "/admin", label: "Admin" };
+
 export default function Nav() {
   const { user, isCommissioner, logout } = useAuth();
   const pathname = usePathname();
 
   if (!user) return null;
 
-  const links = [
-    { href: "/", label: "Home" },
-    { href: "/picks", label: "Picks" },
-    { href: "/standings", label: "Standings" },
-    { href: "/results", label: "Results" },
-    { href: "/history", label: "History" },
-    { href: "/stats", label: "Stats" },
-  ];
-
-  if (isCommissioner) {
-    links.push({ href: "/admin", label: "Admin" });
-  }
+  const links = isCommissioner ? [...BASE_LINKS, ADMIN_LINK] : BASE_LINKS;
 
   return (
     <nav className="bg-gray-900 border-b border-gray-800 px-4 py-3">

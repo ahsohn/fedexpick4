@@ -16,8 +16,7 @@ export default function ProtectedRoute({ children, requireCommissioner = false }
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/login");
-    }
-    if (!isLoading && requireCommissioner && !isCommissioner) {
+    } else if (!isLoading && requireCommissioner && !isCommissioner) {
       router.push("/");
     }
   }, [user, isCommissioner, isLoading, requireCommissioner, router]);

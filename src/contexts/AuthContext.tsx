@@ -5,11 +5,11 @@ import type { User, LoginResponse } from "@/types";
 
 interface AuthState {
   user: User | null;
-  isCommissioner: boolean;
   isLoading: boolean;
 }
 
 interface AuthContextType extends AuthState {
+  isCommissioner: boolean;
   login: (email: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
@@ -19,7 +19,6 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
-    isCommissioner: false,
     isLoading: true,
   });
 
@@ -28,11 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        setState({
-          user: parsed.user,
-          isCommissioner: parsed.user?.is_commissioner ?? false,
-          isLoading: false,
-        });
+        setState({ user: parsed.user ?? null, isLoading: false });
       } catch {
         setState((s) => ({ ...s, isLoading: false }));
       }
@@ -42,35 +37,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string) => {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data: LoginResponse = await res.json();
-
-    if (data.success && data.user) {
-      localStorage.setItem(
-        "fedexpick4_auth",
-        JSON.stringify({ user: data.user })
-      );
-      setState({
-        user: data.user,
-        isCommissioner: data.user.is_commissioner,
-        isLoading: false,
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      return { success: true };
+
+      let data: LoginResponse;
+      try {
+        data = await res.json();
+      } catch {
+        return { success: false, error: "Unexpected server response. Please try again." };
+      }
+
+      if (data.success && data.user) {
+        localStorage.setItem("fedexpick4_auth", JSON.stringify({ user: data.user }));
+        setState({ user: data.user, isLoading: false });
+        return { success: true };
+      }
+      return { success: false, error: data.error ?? "Login failed" };
+    } catch {
+      return { success: false, error: "Network error. Please try again." };
     }
-    return { success: false, error: data.error };
   };
 
   const logout = () => {
     localStorage.removeItem("fedexpick4_auth");
-    setState({ user: null, isCommissioner: false, isLoading: false });
+    setState({ user: null, isLoading: false });
   };
 
+  // Derived at read time so it can never drift from `user`.
+  const isCommissioner = state.user?.is_commissioner ?? false;
+
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, isCommissioner, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
