@@ -28,7 +28,7 @@ FedEx Pick 4 is a standalone fantasy golf league app where users pick 4 golfers 
 - The backup golfer **only activates** if one of the 4 starters does not play at all that week (not entered in the tournament or WD before round 1)
 - If activated, the backup replaces the non-playing starter and earns FedEx points. The backup is then marked as "used" and cannot be picked again
 - If the backup is **not activated**, they return to the available pool and can be picked again in future weeks
-- If multiple starters don't play, only one is replaced by the backup (the first non-playing starter in pick order)
+- If multiple starters don't play, only one is replaced by the backup (the first non-playing starter in pick order). All non-playing starters are marked as `was_subbed_out = true` and can be picked again in future weeks — they are not "used" since they never played
 
 ### Scoring
 - Points are based on FedEx Cup points awarded for that tournament
@@ -39,9 +39,10 @@ FedEx Pick 4 is a standalone fantasy golf league app where users pick 4 golfers 
 
 ### Used Golfer Tracking
 - A golfer is marked as "used" for a user when:
-  - They were picked as a starter (always used, regardless of score)
+  - They were picked as a starter AND actually played (were in the field)
   - They were picked as a backup AND were activated
 - A golfer is NOT marked as "used" when:
+  - They were picked as a starter but did NOT play (subbed out by the backup)
   - They were picked as a backup but were NOT activated
 - Used golfers cannot be picked again for the remainder of the season
 
@@ -94,6 +95,7 @@ FedEx Pick 4 is a standalone fantasy golf league app where users pick 4 golfers 
 | `golfer_id` | integer FK | References `golfers.id` |
 | `pick_type` | text | `starter` or `backup` |
 | `pick_order` | integer | 1-4 for starters, 5 for backup (used for backup activation priority) |
+| `was_subbed_out` | boolean | For starters: whether they were replaced by the backup because they didn't play (default false) |
 | `was_activated` | boolean | For backups: whether they were activated (default false) |
 | `fedex_points` | integer | Points earned (null until tournament is scored) |
 | `created_at` | timestamp | When the pick was submitted |
@@ -124,7 +126,10 @@ SELECT DISTINCT golfer_id FROM picks p
 JOIN tournaments t ON p.tournament_id = t.id
 WHERE p.user_id = :userId
   AND t.season_year = :season
-  AND (p.pick_type = 'starter' OR (p.pick_type = 'backup' AND p.was_activated = true))
+  AND (
+    (p.pick_type = 'starter' AND p.was_subbed_out = false)
+    OR (p.pick_type = 'backup' AND p.was_activated = true)
+  )
 ```
 
 **Season standings:**
@@ -132,7 +137,10 @@ WHERE p.user_id = :userId
 SELECT u.id, u.name, COALESCE(SUM(p.fedex_points), 0) as total
 FROM users u
 LEFT JOIN picks p ON u.id = p.user_id
-  AND (p.pick_type = 'starter' OR (p.pick_type = 'backup' AND p.was_activated = true))
+  AND (
+    (p.pick_type = 'starter' AND p.was_subbed_out = false)
+    OR (p.pick_type = 'backup' AND p.was_activated = true)
+  )
 LEFT JOIN tournaments t ON p.tournament_id = t.id
   AND t.season_year = :season
 GROUP BY u.id ORDER BY total DESC
@@ -185,8 +193,8 @@ The ESPN API does not provide a single "full PGA Tour roster" endpoint. Instead,
 2. System pulls leaderboard from ESPN, extracts FedEx points per golfer
 3. Maps golfer ESPN IDs to internal `golfer_id`
 4. For each user's picks:
-   - Populates `fedex_points` on each starter pick
-   - Checks if any starter's golfer was not in the field → activates backup if so
+   - Checks if any starter's golfer was not in the field → marks that starter as `was_subbed_out = true`, activates backup (`was_activated = true`)
+   - Populates `fedex_points` on each non-subbed-out starter pick
    - Populates `fedex_points` on the activated backup
 5. Presents a review screen to the commissioner showing all users' picks with points
 6. Commissioner approves → standings table is recalculated
@@ -292,7 +300,7 @@ The ESPN API does not provide a single "full PGA Tour roster" endpoint. Instead,
 - **ESPN API unavailable:** field badges show "Field data unavailable" with last-known data. Picks can still be submitted (full roster is always available). Scoring falls back to manual entry by commissioner.
 - **Golfer withdraws mid-tournament:** they still count as "played" (they were in the field). They earn whatever FedEx points they earned (likely 0). Backup is NOT activated.
 - **Golfer withdraws before round 1:** treated as "did not play" → backup activates.
-- **All 4 starters don't play:** only one is replaced by the backup. The other 3 score 0.
+- **Multiple starters don't play:** only the first (by pick order) is replaced by the backup. The others score 0. All non-playing starters are NOT marked as used and can be picked again in future weeks.
 - **Duplicate picks across users:** allowed. Multiple users can pick the same golfer in the same week.
 - **Pick modification:** users can change picks freely until the deadline. After deadline, picks are locked.
 
