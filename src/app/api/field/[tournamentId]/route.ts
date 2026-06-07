@@ -20,13 +20,20 @@ export async function GET(
     }
     const tournament = tournaments[0];
 
-    // Check if field needs auto-refresh (stale > 6 hours and before deadline)
-    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    const isPastDeadline = tournament.deadline && new Date(tournament.deadline as string) < new Date();
-    const isStale = !tournament.field_last_updated || (tournament.field_last_updated as string) < sixHoursAgo;
+    // Check if field needs auto-refresh (stale > 6 hours and before deadline).
+    // Neon returns timestamptz columns as JS Date objects, so normalize via
+    // getTime() rather than comparing strings (a Date's toString() never sorts
+    // correctly against an ISO string).
+    const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+    const toMs = (v: unknown) => (v ? new Date(v as string).getTime() : null);
+    const lastUpdatedMs = toMs(tournament.field_last_updated);
+    const deadlineMs = toMs(tournament.deadline);
+    const isPastDeadline = deadlineMs !== null && deadlineMs < Date.now();
+    const isStale = lastUpdatedMs === null || lastUpdatedMs < Date.now() - SIX_HOURS_MS;
 
+    let lastUpdated = tournament.field_last_updated;
     if (isStale && !isPastDeadline && tournament.espn_event_id) {
-      await refreshField(tournamentId, tournament.espn_event_id as string);
+      lastUpdated = await refreshField(tournamentId, tournament.espn_event_id as string);
     }
 
     const field = await sql`
@@ -35,8 +42,6 @@ export async function GET(
       JOIN golfers g ON tf.golfer_id = g.id
       WHERE tf.tournament_id = ${tournamentId}
     `;
-
-    const lastUpdated = (await sql`SELECT field_last_updated FROM tournaments WHERE id = ${tournamentId}`)[0]?.field_last_updated;
 
     return NextResponse.json({ field, field_last_updated: lastUpdated });
   } catch (error) {
@@ -70,6 +75,9 @@ export async function POST(
   }
 }
 
+// Refreshes a tournament's field from the ESPN leaderboard and returns the new
+// field_last_updated timestamp. The leaderboard is fetched BEFORE the existing
+// field rows are deleted, so a failed ESPN fetch leaves current data intact.
 async function refreshField(tournamentId: number, espnEventId: string) {
   const client = new ESPNClient();
   const leaderboard = await client.getLeaderboard(espnEventId);
@@ -79,13 +87,13 @@ async function refreshField(tournamentId: number, espnEventId: string) {
   for (const entry of leaderboard.entries) {
     if (!entry.player.espnId) continue;
 
-    await sql`
+    // Upsert the golfer and get its internal id in a single round-trip.
+    const golferRows = await sql`
       INSERT INTO golfers (espn_id, name)
       VALUES (${entry.player.espnId}, ${entry.player.displayName})
-      ON CONFLICT (espn_id) DO NOTHING
+      ON CONFLICT (espn_id) DO UPDATE SET name = EXCLUDED.name
+      RETURNING id
     `;
-
-    const golferRows = await sql`SELECT id FROM golfers WHERE espn_id = ${entry.player.espnId}`;
     if (golferRows.length === 0) continue;
 
     await sql`
@@ -95,5 +103,9 @@ async function refreshField(tournamentId: number, espnEventId: string) {
     `;
   }
 
-  await sql`UPDATE tournaments SET field_last_updated = NOW() WHERE id = ${tournamentId}`;
+  const updated = await sql`
+    UPDATE tournaments SET field_last_updated = NOW() WHERE id = ${tournamentId}
+    RETURNING field_last_updated
+  `;
+  return updated[0]?.field_last_updated ?? null;
 }
