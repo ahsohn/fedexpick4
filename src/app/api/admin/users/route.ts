@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { id } = await request.json();
+    if (id === undefined || id === null) {
+      return NextResponse.json({ error: "User id required" }, { status: 400 });
+    }
     await sql`DELETE FROM users WHERE id = ${id}`;
     return NextResponse.json({ success: true });
   } catch (error) {

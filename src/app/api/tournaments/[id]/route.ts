@@ -8,7 +8,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const rows = await sql`SELECT * FROM tournaments WHERE id = ${parseInt(params.id)}`;
+    const id = parseInt(params.id, 10);
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: "Invalid tournament id" }, { status: 400 });
+    }
+    const rows = await sql`SELECT * FROM tournaments WHERE id = ${id}`;
     if (rows.length === 0) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

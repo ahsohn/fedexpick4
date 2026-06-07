@@ -11,8 +11,13 @@ export default function ManageTournamentsPage() {
   const [deadline, setDeadline] = useState("");
 
   const fetchTournaments = async () => {
-    const res = await fetch("/api/tournaments");
-    setTournaments(await res.json());
+    try {
+      const res = await fetch("/api/tournaments");
+      const data = await res.json();
+      setTournaments(Array.isArray(data) ? data : []);
+    } catch {
+      setTournaments([]);
+    }
   };
 
   useEffect(() => { fetchTournaments(); }, []);

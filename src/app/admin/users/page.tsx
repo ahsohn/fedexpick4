@@ -12,9 +12,13 @@ export default function ManageUsersPage() {
   const [error, setError] = useState("");
 
   const fetchUsers = async () => {
-    const res = await fetch("/api/admin/users");
-    const data = await res.json();
-    setUsers(data);
+    try {
+      const res = await fetch("/api/admin/users");
+      const data = await res.json();
+      setUsers(Array.isArray(data) ? data : []);
+    } catch {
+      setUsers([]);
+    }
   };
 
   useEffect(() => { fetchUsers(); }, []);
