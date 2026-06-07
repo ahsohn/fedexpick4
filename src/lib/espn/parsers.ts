@@ -1,4 +1,4 @@
-import type { ESPNLeaderboard, ESPNLeaderboardEntry, ESPNFedExStanding, ESPNScheduleEvent, ESPNPlayer } from "./types";
+import type { ESPNLeaderboard, ESPNLeaderboardEntry, ESPNFedExStanding, ESPNScheduleEvent } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -20,12 +20,15 @@ export function parseLeaderboard(payload: any): ESPNLeaderboard {
     else if (statusText.includes("DQ")) status = "dq";
     else if (statusText.includes("SCHEDULED")) status = "scheduled";
 
-    // Extract FedEx points from statistics if available
+    // Extract FedEx points from statistics if available.
+    // Preserve a legitimate 0; only fall back to null when the value is absent
+    // or non-numeric (do NOT use `|| null`, which would coerce 0 to null).
     let fedexPoints: number | null = null;
     const stats = c.statistics ?? [];
     for (const stat of stats) {
       if (stat.name === "fedExPoints" || stat.name === "cupPoints") {
-        fedexPoints = Number(stat.value) || null;
+        const n = Number(stat.value);
+        fedexPoints = Number.isNaN(n) ? null : n;
       }
     }
 
@@ -51,14 +54,19 @@ export function parseFedexStandings(payload: any, season: number): ESPNFedExStan
 
   if (!cupCategory?.leaders) return [];
 
-  return cupCategory.leaders.map((leader: any, index: number) => ({
-    player: {
-      espnId: String(leader.athlete?.id ?? ""),
-      displayName: leader.athlete?.displayName ?? leader.athlete?.shortName ?? "Unknown",
-    },
-    rank: index + 1,
-    points: Number(leader.value) ?? 0,
-  }));
+  return cupCategory.leaders.map((leader: any, index: number) => {
+    // `Number(x) ?? 0` is a no-op (Number returns NaN, never null), so guard
+    // against NaN explicitly to keep corrupt values out of points arithmetic.
+    const rawPoints = Number(leader.value);
+    return {
+      player: {
+        espnId: String(leader.athlete?.id ?? ""),
+        displayName: leader.athlete?.displayName ?? leader.athlete?.shortName ?? "Unknown",
+      },
+      rank: index + 1,
+      points: Number.isNaN(rawPoints) ? 0 : rawPoints,
+    };
+  });
 }
 
 export function parseSchedule(payload: any): ESPNScheduleEvent[] {

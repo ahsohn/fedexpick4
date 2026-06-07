@@ -1,5 +1,5 @@
 import { DEFAULT_USER_AGENT, LEADERBOARD_URL, SCOREBOARD_URL, STATISTICS_URL } from "./endpoints";
-import type { ESPNLeaderboard, ESPNLeaderboardEntry, ESPNFedExStanding, ESPNScheduleEvent, ESPNPlayer } from "./types";
+import type { ESPNLeaderboard, ESPNFedExStanding, ESPNScheduleEvent } from "./types";
 import { parseLeaderboard, parseFedexStandings, parseSchedule } from "./parsers";
 
 interface ClientOptions {
