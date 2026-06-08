@@ -34,6 +34,7 @@ export default function PicksPage() {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
     fetch("/api/tournaments/current").then((r) => r.json()).then(setTournament);
@@ -64,18 +65,36 @@ export default function PicksPage() {
   const refreshField = async () => {
     if (!tournament || !user) return;
     setRefreshing(true);
-    await fetch(`/api/field/${tournament.id}`, { method: "POST" });
-    const res = await fetch(`/api/golfers?tournament_id=${tournament.id}&user_id=${user.id}`);
-    const data = await res.json();
-    setGolfers(data.golfers ?? []);
-    setFieldLastUpdated(data.field_last_updated);
-    setRefreshing(false);
+    try {
+      await fetch(`/api/field/${tournament.id}`, { method: "POST" });
+      const res = await fetch(`/api/golfers?tournament_id=${tournament.id}&user_id=${user.id}`);
+      const data = await res.json();
+      setGolfers(data.golfers ?? []);
+      setFieldLastUpdated(data.field_last_updated);
+    } catch {
+      setIsSuccess(false);
+      setMessage("Could not refresh the field. Please try again.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Normalize pick_order so starters are always a contiguous 1..4 (in selection
+  // order) and the backup is 5. Renormalizing on every change prevents a
+  // removed-then-added starter from colliding on pick_order.
+  const normalize = (slots: PickSlot[]): PickSlot[] => {
+    let order = 0;
+    return slots.map((p) =>
+      p.pick_type === "starter"
+        ? { ...p, pick_order: ++order }
+        : { ...p, pick_order: 5 }
+    );
   };
 
   const toggleGolfer = (golferId: number) => {
     const existing = picks.find((p) => p.golfer_id === golferId);
     if (existing) {
-      setPicks(picks.filter((p) => p.golfer_id !== golferId));
+      setPicks(normalize(picks.filter((p) => p.golfer_id !== golferId)));
       return;
     }
 
@@ -83,9 +102,9 @@ export default function PicksPage() {
     const hasBackup = picks.some((p) => p.pick_type === "backup");
 
     if (starterCount < 4) {
-      setPicks([...picks, { golfer_id: golferId, pick_type: "starter", pick_order: starterCount + 1 }]);
+      setPicks(normalize([...picks, { golfer_id: golferId, pick_type: "starter", pick_order: 0 }]));
     } else if (!hasBackup) {
-      setPicks([...picks, { golfer_id: golferId, pick_type: "backup", pick_order: 5 }]);
+      setPicks(normalize([...picks, { golfer_id: golferId, pick_type: "backup", pick_order: 5 }]));
     }
   };
 
@@ -94,23 +113,31 @@ export default function PicksPage() {
     setSubmitting(true);
     setMessage("");
 
-    const res = await fetch("/api/picks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tournament_id: tournament.id,
-        user_id: user.id,
-        picks,
-      }),
-    });
+    try {
+      const res = await fetch("/api/picks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournament_id: tournament.id,
+          user_id: user.id,
+          picks: normalize(picks),
+        }),
+      });
 
-    if (res.ok) {
-      setMessage("Picks submitted!");
-    } else {
-      const data = await res.json();
-      setMessage(data.error ?? "Failed to submit");
+      if (res.ok) {
+        setIsSuccess(true);
+        setMessage("Picks submitted!");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setIsSuccess(false);
+        setMessage(data.error ?? "Failed to submit");
+      }
+    } catch {
+      setIsSuccess(false);
+      setMessage("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   const filteredGolfers = useMemo(() => {
@@ -236,7 +263,7 @@ export default function PicksPage() {
             </button>
             <div className="flex items-center gap-3">
               {message && (
-                <span className={`text-sm ${message.includes("!") ? "text-green-400" : "text-red-400"}`}>
+                <span className={`text-sm ${isSuccess ? "text-green-400" : "text-red-400"}`}>
                   {message}
                 </span>
               )}

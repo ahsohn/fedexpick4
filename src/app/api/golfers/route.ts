@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       FROM golfers g
       LEFT JOIN tournament_field tf ON g.id = tf.golfer_id AND tf.tournament_id = ${tId}
       LEFT JOIN (
-        SELECT DISTINCT p.golfer_id, t.name as tournament_name
+        SELECT DISTINCT ON (p.golfer_id) p.golfer_id, t.name as tournament_name
         FROM picks p
         JOIN tournaments t ON p.tournament_id = t.id
         WHERE p.user_id = ${uId}
@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
             (p.pick_type = 'starter' AND p.was_subbed_out = false)
             OR (p.pick_type = 'backup' AND p.was_activated = true)
           )
+        ORDER BY p.golfer_id, t.deadline ASC
       ) used ON g.id = used.golfer_id
       WHERE g.active = true
       ORDER BY g.name ASC

@@ -14,7 +14,11 @@ export const sql = new Proxy(
       return (getClient() as unknown as (...a: unknown[]) => unknown)(...args);
     },
     get(_t, prop) {
-      return (getClient() as unknown as Record<string | symbol, unknown>)[prop];
+      const client = getClient();
+      const value = (client as unknown as Record<string | symbol, unknown>)[prop];
+      // Bind methods (e.g. `transaction`) to their owning client so calling
+      // them through the proxy doesn't lose `this`.
+      return typeof value === "function" ? value.bind(client) : value;
     },
   }
 );
