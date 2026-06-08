@@ -39,13 +39,20 @@ export async function GET(request: NextRequest) {
       ORDER BY g.name
     `;
 
-    const byTournament = new Map<string, any>();
+    // Group by tournament_id (stable) rather than by name, so name variations
+    // can never split one tournament into two groups.
+    const byTournament = new Map<number, any>();
     for (const pick of picks) {
-      const tName = pick.tournament_name as string;
-      if (!byTournament.has(tName)) {
-        byTournament.set(tName, { tournament_name: tName, deadline: pick.deadline, picks: [] });
+      const tId = pick.tournament_id as number;
+      if (!byTournament.has(tId)) {
+        byTournament.set(tId, {
+          tournament_id: tId,
+          tournament_name: pick.tournament_name as string,
+          deadline: pick.deadline,
+          picks: [],
+        });
       }
-      byTournament.get(tName)!.picks.push(pick);
+      byTournament.get(tId)!.picks.push(pick);
     }
 
     return NextResponse.json({

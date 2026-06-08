@@ -10,8 +10,9 @@ export default function StandingsPage() {
   const [standings, setStandings] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!user) return;
     fetch("/api/standings").then((r) => r.json()).then((d) => setStandings(Array.isArray(d) ? d : [])).catch(() => {});
-  }, []);
+  }, [user]);
 
   return (
     <ProtectedRoute>

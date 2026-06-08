@@ -39,8 +39,8 @@ export default function HistoryPage() {
       </div>
 
       <div className="space-y-4">
-        {history.map((week: any, index: number) => (
-          <div key={index} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        {history.map((week: any) => (
+          <div key={week.tournament_id} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
             <h3 className="font-semibold mb-2">{week.tournament_name}</h3>
             <div className="space-y-1 text-sm">
               {week.picks.map((pick: any) => (

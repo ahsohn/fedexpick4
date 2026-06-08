@@ -15,7 +15,7 @@ export async function GET() {
         COALESCE(s.total_points, 0) as total_points
       FROM users u
       LEFT JOIN standings s ON u.id = s.user_id AND s.season_year = ${season}
-      ORDER BY COALESCE(s.total_points, 0) DESC
+      ORDER BY COALESCE(s.total_points, 0) DESC, u.name ASC
     `;
 
     const ranked = standings.map((row: any, index: number) => ({
