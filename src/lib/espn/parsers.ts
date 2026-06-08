@@ -1,7 +1,5 @@
 import type { ESPNLeaderboard, ESPNLeaderboardEntry, ESPNFedExStanding, ESPNScheduleEvent } from "./types";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 export function parseLeaderboard(payload: any): ESPNLeaderboard {
   const event = payload?.events?.[0] ?? payload?.event;
   if (!event) throw new Error("No event found in leaderboard response");
