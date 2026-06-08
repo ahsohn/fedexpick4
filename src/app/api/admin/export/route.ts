@@ -53,7 +53,8 @@ export async function GET() {
       ].join(",")
     );
 
-    const body = [headers, ...rows].join("\n");
+    // RFC 4180 uses CRLF; this also keeps Excel on Windows from collapsing rows.
+    const body = [headers, ...rows].join("\r\n");
 
     return new NextResponse(body, {
       headers: {
