@@ -82,12 +82,19 @@ export default function ScoreReviewPage() {
   };
 
   const updatePoints = (userIndex: number, pickIndex: number, points: number) => {
-    const updated = [...results];
-    updated[userIndex].picks[pickIndex].fedex_points = points;
-    updated[userIndex].week_total = updated[userIndex].picks
-      .filter((p) => (p.pick_type === "starter" && !p.was_subbed_out) || (p.pick_type === "backup" && p.was_activated))
-      .reduce((sum, p) => sum + p.fedex_points, 0);
-    setResults(updated);
+    // Immutable update so React reliably re-renders (no in-place mutation).
+    setResults((prev) =>
+      prev.map((u, ui) => {
+        if (ui !== userIndex) return u;
+        const picks = u.picks.map((p, pi) =>
+          pi === pickIndex ? { ...p, fedex_points: points } : p
+        );
+        const week_total = picks
+          .filter((p) => (p.pick_type === "starter" && !p.was_subbed_out) || (p.pick_type === "backup" && p.was_activated))
+          .reduce((sum, p) => sum + p.fedex_points, 0);
+        return { ...u, picks, week_total };
+      })
+    );
   };
 
   return (

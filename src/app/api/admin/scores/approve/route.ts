@@ -1,20 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { recalculateStandings } from "@/lib/scoring";
+import { standingsRecalcStatements } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
     const { tournament_id, results } = await request.json();
-    if (!tournament_id || !results) {
-      return NextResponse.json({ error: "tournament_id and results required" }, { status: 400 });
+    if (!tournament_id || !Array.isArray(results) || results.length === 0) {
+      return NextResponse.json(
+        { error: "tournament_id and a non-empty results array are required" },
+        { status: 400 }
+      );
     }
 
-    const updates = [];
+    const season = parseInt(
+      (await sql`SELECT value FROM config WHERE key = 'current_season'`)[0]?.value
+        ?? new Date().getFullYear().toString(),
+      10
+    );
+
+    // Apply every pick update, mark the tournament scored, and recompute
+    // standings in ONE transaction so the data can never be left half-scored.
+    // Standings statements run last and see the just-updated picks.
+    const statements = [];
     for (const userResult of results) {
-      for (const pick of userResult.picks) {
-        updates.push(sql`
+      for (const pick of userResult.picks ?? []) {
+        statements.push(sql`
           UPDATE picks
           SET fedex_points = ${pick.fedex_points},
               was_subbed_out = ${pick.was_subbed_out},
@@ -23,13 +35,10 @@ export async function POST(request: NextRequest) {
         `);
       }
     }
-    updates.push(sql`UPDATE tournaments SET status = 'scored' WHERE id = ${tournament_id}`);
+    statements.push(sql`UPDATE tournaments SET status = 'scored' WHERE id = ${tournament_id}`);
+    statements.push(...standingsRecalcStatements(season));
 
-    await sql.transaction(updates);
-
-    const config = await sql`SELECT value FROM config WHERE key = 'current_season'`;
-    const season = parseInt(config[0]?.value ?? new Date().getFullYear().toString());
-    await recalculateStandings(season);
+    await sql.transaction(statements);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -31,35 +31,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch picks with golfer and user names in a single query (no per-row
+    // lookups). espn_id feeds the scoring engine; the names are for display.
     const picks = await sql`
-      SELECT p.id, p.user_id, p.golfer_id, p.pick_type, p.pick_order, g.espn_id
+      SELECT p.id, p.user_id, p.golfer_id, p.pick_type, p.pick_order,
+             g.espn_id, g.name AS golfer_name, u.name AS user_name
       FROM picks p
       JOIN golfers g ON p.golfer_id = g.id
+      JOIN users u ON p.user_id = u.id
       WHERE p.tournament_id = ${tournament_id}
       ORDER BY p.user_id, p.pick_order
     `;
 
     const picksByUser = new Map<number, any[]>();
+    const userNameById = new Map<number, string>();
+    const golferNameById = new Map<number, string>();
     for (const pick of picks) {
       const userId = pick.user_id as number;
       if (!picksByUser.has(userId)) picksByUser.set(userId, []);
       picksByUser.get(userId)!.push(pick);
+      userNameById.set(userId, (pick.user_name as string) ?? "Unknown");
+      golferNameById.set(pick.golfer_id as number, (pick.golfer_name as string) ?? "Unknown");
     }
 
     const results: any[] = [];
     for (const [userId, userPicks] of Array.from(picksByUser.entries())) {
       const scored = processUserPicks(userPicks, fieldEspnIds, fedexPointsByEspnId);
-      const userRows = await sql`SELECT name FROM users WHERE id = ${userId}`;
-      const userName = (userRows[0]?.name as string) ?? "Unknown";
+      const userName = userNameById.get(userId) ?? "Unknown";
 
-      const enriched = [];
-      for (const s of scored) {
-        const golferRows = await sql`SELECT name FROM golfers WHERE id = ${s.golfer_id}`;
-        enriched.push({
-          ...s,
-          golfer_name: (golferRows[0]?.name as string) ?? "Unknown",
-        });
-      }
+      const enriched = scored.map((s) => ({
+        ...s,
+        golfer_name: golferNameById.get(s.golfer_id) ?? "Unknown",
+      }));
 
       const weekTotal = enriched
         .filter((p) => (p.pick_type === "starter" && !p.was_subbed_out) || (p.pick_type === "backup" && p.was_activated))
