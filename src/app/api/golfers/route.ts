@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { ESPNClient } from "@/lib/espn/client";
+import { ensureFieldFresh } from "@/lib/field";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,18 @@ export async function GET(request: NextRequest) {
 
     const config = await sql`SELECT value FROM config WHERE key = 'current_season'`;
     const season = parseInt(config[0]?.value ?? new Date().getFullYear().toString(), 10);
+
+    // Auto-refresh the field from ESPN if it's stale and the deadline hasn't
+    // passed. This is the endpoint the picks page calls on load, so this is what
+    // actually keeps the IN FIELD / NOT IN FIELD badges current. No-ops when the
+    // field is fresh, past deadline, or has no linked ESPN event.
+    const tournamentRows = await sql`
+      SELECT id, espn_event_id, deadline, field_last_updated
+      FROM tournaments WHERE id = ${tId}
+    `;
+    if (tournamentRows.length > 0) {
+      await ensureFieldFresh(tournamentRows[0] as any);
+    }
 
     // A golfer is "used" only if they actually played as a starter, or were an
     // activated backup, in a DIFFERENT tournament this season. The current

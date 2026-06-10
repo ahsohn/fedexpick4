@@ -15,7 +15,8 @@ function getClient(): NeonQueryFunction<false, false> {
   return client;
 }
 
-// Proxy creates a fresh client per call — important for Vercel deployments
+// Proxy forwards tagged-template calls and method access to the memoized client
+// above (see that comment for why a single instance is required).
 export const sql = new Proxy(
   (() => {}) as unknown as NeonQueryFunction<false, false>,
   {

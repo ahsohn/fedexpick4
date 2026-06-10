@@ -37,7 +37,11 @@ export default function PicksPage() {
   const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
-    fetch("/api/tournaments/current").then((r) => r.json()).then(setTournament);
+    fetch("/api/tournaments/current")
+      .then((r) => r.json())
+      // Only accept a real tournament object; an error response has no `id`.
+      .then((t) => setTournament(t && typeof t.id === "number" ? t : null))
+      .catch(() => setTournament(null));
   }, []);
 
   useEffect(() => {

@@ -22,7 +22,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-    fetch("/api/tournaments/current").then((r) => r.json()).then(setTournament).catch(() => {});
+    fetch("/api/tournaments/current")
+      .then((r) => r.json())
+      .then((t) => setTournament(t && typeof t.id === "number" ? t : null))
+      .catch(() => {});
     fetch("/api/standings").then((r) => r.json()).then((d) => setStandings(Array.isArray(d) ? d : [])).catch(() => {});
   }, [user]);
 
