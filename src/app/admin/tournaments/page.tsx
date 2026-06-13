@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import EspnEventPicker, {
+  toDatetimeLocal,
+  type EspnEventSelection,
+} from "@/components/EspnEventPicker";
 import type { Tournament } from "@/types";
 
 export default function ManageTournamentsPage() {
@@ -41,6 +45,16 @@ export default function ManageTournamentsPage() {
     fetchTournaments();
   };
 
+  const handleEventSelect = (sel: EspnEventSelection | null) => {
+    if (!sel) return;
+    // ESPN Event ID is the picker's core job — always set it (the text field
+    // below mirrors it and stays editable as a manual override).
+    setEspnEventId(sel.espnEventId);
+    // Fill name/deadline only if empty so we never clobber manual edits.
+    setName((prev) => prev || sel.eventName);
+    setDeadline((prev) => prev || toDatetimeLocal(sel.startDate));
+  };
+
   const updateStatus = async (id: number, status: string) => {
     await fetch("/api/admin/tournaments", {
       method: "PUT",
@@ -55,6 +69,13 @@ export default function ManageTournamentsPage() {
       <h1 className="text-2xl font-bold mb-6">Tournament Management</h1>
 
       <form onSubmit={createTournament} className="bg-gray-900 border border-gray-800 rounded-lg p-4 mb-6">
+        <div className="mb-3">
+          <label className="block text-sm text-gray-400 mb-1">ESPN Event</label>
+          <EspnEventPicker onChange={handleEventSelect} />
+          <p className="text-xs text-gray-500 mt-1">
+            Picking an event fills the ID, name (if blank), and deadline (if blank). You can edit any field below.
+          </p>
+        </div>
         <div className="flex gap-3 items-end flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-sm text-gray-400 mb-1">Tournament Name</label>
