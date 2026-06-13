@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { sql } from "@/lib/db";
 import { refreshField, ensureFieldFresh } from "@/lib/field";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { tournamentId: string } }
 ) {
+  noStore();
   try {
     const tournamentId = parseInt(params.tournamentId, 10);
     if (Number.isNaN(tournamentId)) {

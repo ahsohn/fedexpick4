@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
+  noStore();
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("user_id");

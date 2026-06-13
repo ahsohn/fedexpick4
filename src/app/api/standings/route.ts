@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
+  noStore();
   try {
     const config = await sql`SELECT value FROM config WHERE key = 'current_season'`;
     const season = parseInt(config[0]?.value ?? new Date().getFullYear().toString());

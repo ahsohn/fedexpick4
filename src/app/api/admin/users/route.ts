@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { sql } from "@/lib/db";
 import type { User } from "@/types";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
+  noStore();
   try {
     const rows = await sql`SELECT id, name, email, is_commissioner, created_at FROM users ORDER BY name`;
     return NextResponse.json(rows as User[]);
